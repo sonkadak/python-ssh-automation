@@ -2,7 +2,7 @@
 import paramiko
 import time
 import sys, os
-from multiprocessing.dummy import Pool as ThreadPool
+from multiprocessing import Pool, cpu_count
 
 # character match
 PW_MAP = { '1':'a', '2':'b', '3':'c', '4':'d', '5':'e', '6':'f', '7':'g', '8':'h', '9':'i', '0':'j' }
@@ -19,15 +19,11 @@ def main():
 
     cnt = len(SSH_INFO)
     if cnt:
-        # for prefixed command
-        if len(sys.argv) > 1:
-            precmd = getPrefixedcmd(sys.argv[1])
-            for arg in SSH_INFO:
-                sshParallel(arg[0], arg[1], arg[2], cnt, precmd)
-        else:
-            # just use commands in script.txt
-            for arg in SSH_INFO:
-                sshParallel(arg[0], arg[1], arg[2], cnt)
+        # get in to ssh with multiprocessing
+        pool = Pool(cpu_count()-1)
+        pool.starmap(sshConnect, SSH_INFO)
+        pool.close()
+        pool.join()
     else:
         print ('There is no host to connect !')
     
@@ -66,14 +62,19 @@ def sshConnect(host, pw, rpw):
         outdata, errdata = waitStreams(channel)
         print ('Login Successful: ' + host)
 
-        # check script.txt file
-        if os.path.getsize('script.txt') > 0:
-            with open('script.txt') as cmds:
-                for cmd in cmds:
-                    cmd = cmd.rstrip('\n')
-                    execCommand(cmd, channel)
+        # for prefixed command
+        if len(sys.argv) > 1:
+            precmd = getPrefixedcmd(sys.argv[1])
+            execCommand(precmd, channel)
         else:
-            print ("script.txt file is empty !")
+            # check script.txt file
+            if os.path.getsize('script.txt') > 0:
+                with open('script.txt') as cmds:
+                    for cmd in cmds:
+                        cmd = cmd.rstrip('\n')
+                        execCommand(cmd, channel)
+            else:
+                print ("script.txt file is empty !")
         
     except Exception as e:
         print ('Somethings gone wrong !', e)
@@ -86,14 +87,6 @@ def sshConnect(host, pw, rpw):
         if ssh is not None:
             print (host+': Job done')
             ssh.close()
-
-# multiprocessing
-def sshParallel(host, pw, rpw, threads=1, pcmd=None):
-    pool = ThreadPool(threads)
-    results = pool.starmap(sshConnect, [(host, pw, rpw)])
-    pool.close()
-    pool.join()
-    return results
 
 # send command and loop Stream outdata is end
 def execCommand(command, chn):
