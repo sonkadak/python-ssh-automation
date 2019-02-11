@@ -40,9 +40,9 @@ def waitStreams(chan):
     outdata=errdata = ""
 
     while chan.recv_ready():
-        outdata += str(chan.recv(1000))
+        outdata += chan.recv(1000).decode()
     while chan.recv_stderr_ready():
-        errdata += str(chan.recv_stderr(1000))
+        errdata += chan.recv_stderr(1000).decode()
 
     return outdata, errdata
 
